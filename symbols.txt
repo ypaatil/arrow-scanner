@@ -1,11 +1,13 @@
 # One Yahoo Finance symbol per line. Lines starting with # are ignored.
 # Prices in comments are the 26 Nov 2026 closing prices (for reference only).
 
-# ---- Gold and forex ----
+# ---- Gold ----
 XAUUSD=X      # Gold spot (the scanner uses GC=F gold futures if Yahoo has no data)
+
+# ---- Top 10 forex pairs ----
 EURUSD=X
-GBPUSD=X
 USDJPY=X
+GBPUSD=X
 USDCHF=X
 AUDUSD=X
 USDCAD=X
@@ -14,7 +16,7 @@ EURGBP=X
 EURJPY=X
 GBPJPY=X
 
-# ---- Nifty 50 stocks priced above Rs 300 (45 of 50) ----
+# ---- Nifty 50 stocks priced between Rs 300 and Rs 5000 (39 of 50) ----
 RELIANCE.NS       # Reliance Industries ~1,373.90
 BHARTIARTL.NS     # Bharti Airtel ~2,117.50
 HDFCBANK.NS       # HDFC Bank ~846.20
@@ -27,34 +29,28 @@ KOTAKBANK.NS      # Kotak Mahindra Bank ~509.00
 HINDUNILVR.NS     # Hindustan Unilever ~2,141.80
 INFY.NS           # Infosys ~1,130.00
 SUNPHARMA.NS      # Sun Pharma ~1,901.00
-MARUTI.NS         # Maruti Suzuki ~14,200.00
 ADANIPORTS.NS     # Adani Ports ~1,926.30
 AXISBANK.NS       # Axis Bank ~1,418.10
 M&M.NS            # Mahindra & Mahindra ~3,509.50
 TITAN.NS          # Titan ~4,686.60
 ITC.NS            # ITC ~309.25
-ULTRACEMCO.NS     # UltraTech Cement ~12,800.00
 HCLTECH.NS        # HCL Technologies ~1,380.00
 ADANIENT.NS       # Adani Enterprises ~2,668.50
 ETERNAL.NS        # Eternal (Zomato) ~371.70
 JSWSTEEL.NS       # JSW Steel ~1,302.50
 BAJAJFINSV.NS     # Bajaj Finserv ~1,925.00
 NTPC.NS           # NTPC ~318.00
-BAJAJ-AUTO.NS     # Bajaj Auto ~10,868.00
 BEL.NS            # Bharat Electronics ~404.30
 NESTLEIND.NS      # Nestle India ~1,358.50
 ASIANPAINT.NS     # Asian Paints ~2,621.20
 COALINDIA.NS      # Coal India ~385.00
 SHRIRAMFIN.NS     # Shriram Finance ~989.95
-EICHERMOT.NS      # Eicher Motors ~8,336.00
-INDIGO.NS         # InterGlobe Aviation ~5,720.00
 GRASIM.NS         # Grasim ~3,162.00
 HINDALCO.NS       # Hindalco ~889.90
 SBILIFE.NS        # SBI Life Insurance ~1,823.90
 TRENT.NS          # Trent ~3,319.60
 TECHM.NS          # Tech Mahindra ~1,801.20
 BSE.NS            # BSE Ltd ~3,775.20
-APOLLOHOSP.NS     # Apollo Hospitals ~9,300.00
 HDFCLIFE.NS       # HDFC Life ~601.30
 TATACONSUM.NS     # Tata Consumer ~1,185.80
 DRREDDY.NS        # Dr Reddy's ~1,398.00
