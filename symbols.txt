@@ -6,6 +6,13 @@ XAUUSD=X      # Gold spot (the scanner uses GC=F gold futures if Yahoo has no da
 EURUSD=X
 GBPUSD=X
 USDJPY=X
+USDCHF=X
+AUDUSD=X
+USDCAD=X
+NZDUSD=X
+EURGBP=X
+EURJPY=X
+GBPJPY=X
 
 # ---- Nifty 50 stocks priced above Rs 300 (45 of 50) ----
 RELIANCE.NS       # Reliance Industries ~1,373.90
