@@ -54,6 +54,18 @@ RETEST_GAP = 4
 # ---------------------------------------------------------------------------
 
 
+def pretty(sym):
+    """Readable name for emails, e.g. XAUUSD=X -> Gold (XAUUSD), RELIANCE.NS -> RELIANCE."""
+    special = {"XAUUSD=X": "Gold (XAUUSD)", "GC=F": "Gold Futures (GC)",
+               "XAGUSD=X": "Silver (XAGUSD)", "^NSEI": "Nifty 50", "^NSEBANK": "Bank Nifty"}
+    if sym in special:
+        return special[sym]
+    for suffix in ("=X", ".NS", ".BO"):
+        if sym.endswith(suffix):
+            return sym[: -len(suffix)]
+    return sym
+
+
 def find_poc(h, l, frm, to):
     """Most-touched price level between bars frm..to (same as the indicator's POC engine)."""
     if frm is None or to is None or to - frm <= 0:
@@ -303,13 +315,13 @@ def analyze(sym, dry=False):
     for i, d, s in hits:
         alerts.append(dict(
             key=f"{sym}|{m15.index[i]}|{d}",
-            subject=f"{'UP' if d == 1 else 'DOWN'} arrows x{s} | {sym}",
-            body=(f"Symbol: {sym}\n"
-                  f"Daily last arrow: {name[daily_dir]}\n"
-                  f"15m: {s} {name[d]} arrows in a row (no opposite arrow between)\n"
-                  f"Arrow candle: {m15.index[i - 1]}\n"
-                  f"Confirmed on candle: {m15.index[i]}\n"
-                  f"Price (close): {m15['Close'].iloc[i]:.2f}\n")))
+            name=pretty(sym),
+            dir_txt="UP" if d == 1 else "DOWN",
+            body=(f"{pretty(sym)}  ({sym})\n"
+                  f"  Signal: {s} {name[d]} arrows in a row on 15m\n"
+                  f"  Daily last arrow: {name[daily_dir]}\n"
+                  f"  Arrow candle: {m15.index[i - 1]}\n"
+                  f"  Price (close): {m15['Close'].iloc[i]:.5g}\n")))
     return alerts
 
 
@@ -368,6 +380,7 @@ def main():
         return
 
     state = load_state()
+    new_alerts = []
     for sym in load_symbols():
         time.sleep(1)  # be gentle with Yahoo
         try:
@@ -376,12 +389,19 @@ def main():
             print(f"[{sym}] error: {e}")
             continue
         for al in alerts:
-            if al["key"] in state["sent"]:
-                continue
-            print(f"  ALERT -> {al['subject']}")
-            if not a.dry:
-                send_email(al["subject"], al["body"])
-                state["sent"].append(al["key"])
+            if al["key"] not in state["sent"]:
+                new_alerts.append(al)
+
+    if new_alerts:
+        names = ", ".join(f"{x['name']} {x['dir_txt']}" for x in new_alerts)
+        subject = f"Arrow alert: {names}"
+        body = "\n".join(x["body"] for x in new_alerts)
+        print(f"ALERT -> {subject}")
+        if not a.dry:
+            send_email(subject, body)
+            state["sent"] += [x["key"] for x in new_alerts]
+    else:
+        print("No new alerts this run.")
     if not a.dry:
         save_state(state)
 
