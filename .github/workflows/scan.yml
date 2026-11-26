@@ -2,8 +2,11 @@ name: Arrow scanner
 
 on:
   schedule:
-    # Every 15 min, just after each 15m candle closes (UTC). Forex trades Sunday evening to Friday.
-    - cron: "2,17,32,47 * * * 0-5"
+    # Every 15 minutes, just after each 15m candle closes. Times are UTC.
+    # Forex/gold trade from Sunday evening to Friday evening (New York 5 pm).
+    - cron: "2,17,32,47 21-23 * * 0"   # Sunday evening (market opens)
+    - cron: "2,17,32,47 * * * 1-4"     # Monday to Thursday, all day
+    - cron: "2,17,32,47 0-22 * * 5"    # Friday until the market closes
   workflow_dispatch:
     inputs:
       test:
