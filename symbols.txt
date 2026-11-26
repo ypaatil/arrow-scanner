@@ -1,0 +1,15 @@
+# One Yahoo Finance symbol per line. Lines starting with # are ignored.
+# Keep the list to about 25 symbols or fewer.
+
+# ---- Gold and forex ----
+XAUUSD=X      # Gold spot (the scanner uses GC=F gold futures if Yahoo has no data)
+EURUSD=X
+GBPUSD=X
+USDJPY=X
+
+# ---- Indian stocks (add .NS after the NSE name) ----
+RELIANCE.NS
+HDFCBANK.NS
+TCS.NS
+ONGC.NS
+SBIN.NS
