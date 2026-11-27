@@ -48,6 +48,11 @@ USE_DAILY_FILTER = True  # require the daily last arrow to match
 LOOKBACK_BARS = 3        # only alert for arrows from the last N completed 15m bars
 STATE_FILE = "state.json"
 
+# Match what you SEE on the TradingView chart (Fast3 indicator):
+ONLY_VISIBLE_ARROWS = True  # count only arrows the indicator would actually draw
+NEAREST_OBS = 3             # same as indicator "Show Nearest"
+HIST_BARS = 500             # same as indicator "History Bars To Scan"
+
 BINS = 40
 MAX_OBS = 50
 RETEST_GAP = 4
@@ -146,7 +151,24 @@ def prune(obs):
             obs.pop()
 
 
-def run_engine(o, h, l, c, swing_len=SWING_LEN, inv=INVALIDATION):
+def nearest_active(obs, want_bull, price, k):
+    """Indexes of the k active zones of one side nearest to price (like the indicator's pickNearest)."""
+    cands = []
+    for idx, ob in enumerate(obs):
+        if ob["bull"] == want_bull and ob["active"]:
+            if price > ob["top"]:
+                d = price - ob["top"]
+            elif price < ob["bottom"]:
+                d = ob["bottom"] - price
+            else:
+                d = 0.0
+            cands.append((d, idx))
+    cands.sort()
+    return {idx for _, idx in cands[:k]}
+
+
+def run_engine(o, h, l, c, swing_len=SWING_LEN, inv=INVALIDATION,
+               hist_bars=HIST_BARS, nearest=NEAREST_OBS, only_visible=ONLY_VISIBLE_ARROWS):
     """Returns (ev, last): ev[i] = arrow direction confirmed on bar i (1 up, -1 down, 0 none);
     last[i] = last arrow direction up to bar i. The arrow itself is drawn on bar i-1."""
     n = len(c)
@@ -159,6 +181,7 @@ def run_engine(o, h, l, c, swing_len=SWING_LEN, inv=INVALIDATION):
     ev = np.zeros(n, dtype=int)
     last = np.zeros(n, dtype=int)
     last_dir = 0
+    first_ob_bar = n - 1 - hist_bars  # zones are only created after this bar (like the indicator)
 
     for i in range(n):
         if i >= 2 * L:
@@ -175,9 +198,11 @@ def run_engine(o, h, l, c, swing_len=SWING_LEN, inv=INVALIDATION):
 
         to_i = i - 1
         got_bull = got_bear = False
+        logged = []
+        in_range = i > first_ob_bar
 
         if prev_bear_now:
-            if prev_sl_i is not None:
+            if prev_sl_i is not None and in_range:
                 z = make_zone(h, l, prev_sl_i, to_i, False)
                 if z and not overlaps_active(obs, z[0], z[1]):
                     obs.insert(0, dict(top=z[0], bottom=z[1], bull=False,
@@ -186,7 +211,7 @@ def run_engine(o, h, l, c, swing_len=SWING_LEN, inv=INVALIDATION):
             sl_p = sl_i = None
 
         if prev_bull_now:
-            if prev_sh_i is not None:
+            if prev_sh_i is not None and in_range:
                 z = make_zone(h, l, prev_sh_i, to_i, True)
                 if z and not overlaps_active(obs, z[0], z[1]):
                     obs.insert(0, dict(top=z[0], bottom=z[1], bull=True,
@@ -222,12 +247,25 @@ def run_engine(o, h, l, c, swing_len=SWING_LEN, inv=INVALIDATION):
                 if rt and p > ob["created"]:
                     last_side = last_bull_rt if ob["bull"] else last_bear_rt
                     if last_side is None or p - last_side >= RETEST_GAP:
+                        logged.append(ob)
                         if ob["bull"]:
-                            got_bull = True
                             last_bull_rt = p
                         else:
-                            got_bear = True
                             last_bear_rt = p
+
+        # keep only arrows the indicator would draw: the zone must still be active
+        # and among the nearest zones to the current price
+        if logged:
+            if only_visible:
+                show = set()
+                for j in nearest_active(obs, True, c[i], nearest) | nearest_active(obs, False, c[i], nearest):
+                    show.add(id(obs[j]))
+                logged = [ob for ob in logged if id(ob) in show]
+            for ob in logged:
+                if ob["bull"]:
+                    got_bull = True
+                else:
+                    got_bear = True
 
         if got_bull and not got_bear:
             ev[i] = 1
@@ -296,23 +334,31 @@ def analyze(sym, dry=False):
 
     # streak of same-direction arrows (an opposite arrow resets it)
     n = len(ev)
-    streak, prev = 0, 0
+    streak, prev, idxs = 0, 0, []
     hits = []
     for i in range(n):
         if ev[i] == 0:
             continue
-        streak = streak + 1 if ev[i] == prev else 1
+        if ev[i] == prev:
+            streak += 1
+            idxs.append(i)
+        else:
+            streak, idxs = 1, [i]
         prev = int(ev[i])
         if i >= n - LOOKBACK_BARS and streak >= ARROWS_IN_ROW:
             if (not USE_DAILY_FILTER) or daily_dir == ev[i]:
-                hits.append((i, int(ev[i]), streak))
+                hits.append((i, int(ev[i]), streak, list(idxs)))
+
+    def fmt(ts):  # show times in Indian time
+        return ts.tz_convert("Asia/Kolkata").strftime("%d %b %H:%M")
 
     name = {1: "UP", -1: "DOWN", 0: "NONE"}
     recent = [(str(m15.index[i - 1])[:16], name[int(ev[i])]) for i in range(n) if ev[i] != 0][-5:]
     print(f"[{sym}] daily last arrow: {name[daily_dir]} | last 15m arrows: {recent}")
 
     alerts = []
-    for i, d, s in hits:
+    for i, d, s, idxs in hits:
+        times = ", ".join(fmt(m15.index[j - 1]) for j in idxs[-6:])
         alerts.append(dict(
             key=f"{sym}|{m15.index[i]}|{d}",
             name=pretty(sym),
@@ -320,7 +366,7 @@ def analyze(sym, dry=False):
             body=(f"{pretty(sym)}  ({sym})\n"
                   f"  Signal: {s} {name[d]} arrows in a row on 15m\n"
                   f"  Daily last arrow: {name[daily_dir]}\n"
-                  f"  Arrow candle: {m15.index[i - 1]}\n"
+                  f"  Arrow candle times (IST): {times}\n"
                   f"  Price (close): {m15['Close'].iloc[i]:.5g}\n")))
     return alerts
 
