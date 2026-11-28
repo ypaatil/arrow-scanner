@@ -18,6 +18,7 @@ import os
 import smtplib
 import sys
 import time
+import urllib.request
 from email.message import EmailMessage
 
 import numpy as np
@@ -43,10 +44,13 @@ DAILY_ROLLOVER_HOUR_NY = 17
 
 SWING_LEN = 5            # same as indicator "Swing Length"
 INVALIDATION = "Wick"    # "Wick" or "Close", same as indicator
-ARROWS_IN_ROW = 2        # same-direction arrows needed
-USE_DAILY_FILTER = True  # require the daily last arrow to match
+# The two schedulers (stocks and forex) set these through environment variables in their .yml file.
+ARROWS_IN_ROW = int(os.environ.get("ARROWS_IN_ROW", "2"))              # same-direction arrows needed
+USE_DAILY_FILTER = os.environ.get("DAILY_FILTER", "1") == "1"          # require the daily last arrow to match
+SYMBOLS_FILE = os.environ.get("SYMBOLS_FILE", "symbols.txt")           # list of symbols to scan
+ALERT_PREFIX = os.environ.get("ALERT_PREFIX", "Arrow alert")           # start of the email subject
 LOOKBACK_BARS = 3        # only alert for arrows from the last N completed 15m bars
-STATE_FILE = "state.json"
+STATE_FILE = os.environ.get("STATE_FILE", "state.json")
 
 # Match what you SEE on the TradingView chart (Fast3 indicator):
 ONLY_VISIBLE_ARROWS = True  # count only arrows the indicator would actually draw
@@ -310,16 +314,20 @@ def build_daily(sym):
 
 
 def analyze(sym, dry=False):
-    daily = build_daily(sym)
+    daily = build_daily(sym) if USE_DAILY_FILTER else None
     m15 = load(sym, "15m", "60d")
-    if (len(daily) < 50 or len(m15) < 50) and sym in FALLBACKS:
+
+    def too_little(d, m):
+        return len(m) < 50 or (d is not None and len(d) < 50)
+
+    if too_little(daily, m15) and sym in FALLBACKS:
         print(f"[{sym}] no usable data, trying {FALLBACKS[sym]}")
         alt = FALLBACKS[sym]
-        daily = build_daily(alt)
+        daily = build_daily(alt) if USE_DAILY_FILTER else None
         m15 = load(alt, "15m", "60d")
         sym = alt
-    if len(daily) < 50 or len(m15) < 50:
-        print(f"[{sym}] not enough data (daily={len(daily)}, 15m={len(m15)})")
+    if too_little(daily, m15):
+        print(f"[{sym}] not enough data (daily={None if daily is None else len(daily)}, 15m={len(m15)})")
         return []
 
     # keep only completed 15m candles
@@ -327,8 +335,10 @@ def analyze(sym, dry=False):
     m15 = m15[m15.index + pd.Timedelta(minutes=15) <= now]
 
     arr = lambda d, k: d[k].to_numpy(dtype=float)
-    _, d_last = run_engine(arr(daily, "Open"), arr(daily, "High"), arr(daily, "Low"), arr(daily, "Close"))
-    daily_dir = int(d_last[-1])
+    daily_dir = 0
+    if USE_DAILY_FILTER:
+        _, d_last = run_engine(arr(daily, "Open"), arr(daily, "High"), arr(daily, "Low"), arr(daily, "Close"))
+        daily_dir = int(d_last[-1])
 
     ev, _ = run_engine(arr(m15, "Open"), arr(m15, "High"), arr(m15, "Low"), arr(m15, "Close"))
 
@@ -354,7 +364,8 @@ def analyze(sym, dry=False):
 
     name = {1: "UP", -1: "DOWN", 0: "NONE"}
     recent = [(str(m15.index[i - 1])[:16], name[int(ev[i])]) for i in range(n) if ev[i] != 0][-5:]
-    print(f"[{sym}] daily last arrow: {name[daily_dir]} | last 15m arrows: {recent}")
+    daily_note = f"daily last arrow: {name[daily_dir]} | " if USE_DAILY_FILTER else "daily filter OFF | "
+    print(f"[{sym}] {daily_note}last 15m arrows: {recent}")
 
     alerts = []
     for i, d, s, idxs in hits:
@@ -365,7 +376,7 @@ def analyze(sym, dry=False):
             dir_txt="UP" if d == 1 else "DOWN",
             body=(f"{pretty(sym)}  ({sym})\n"
                   f"  Signal: {s} {name[d]} arrows in a row on 15m\n"
-                  f"  Daily last arrow: {name[daily_dir]}\n"
+                  + (f"  Daily last arrow: {name[daily_dir]}\n" if USE_DAILY_FILTER else "") +
                   f"  Arrow candle times (IST): {times}\n"
                   f"  Price (close): {m15['Close'].iloc[i]:.5g}\n")))
     return alerts
@@ -388,9 +399,28 @@ def send_email(subject, body):
         s.send_message(msg)
 
 
+def send_push(title, message):
+    """Phone notification with sound through the free ntfy app (optional).
+    Needs the NTFY_TOPIC secret. If it is not set, nothing happens."""
+    topic = os.environ.get("NTFY_TOPIC", "").strip()
+    if not topic:
+        return
+    try:
+        req = urllib.request.Request(
+            f"https://ntfy.sh/{topic}",
+            data=message[:3500].encode("utf-8"),
+            headers={"Title": title.encode("ascii", "ignore").decode(), "Priority": "high",
+                     "Tags": "chart_with_upwards_trend"},
+            method="POST")
+        urllib.request.urlopen(req, timeout=20).read()
+        print("Phone notification sent.")
+    except Exception as e:
+        print(f"Phone notification failed: {e}")
+
+
 def load_symbols():
     try:
-        with open("symbols.txt") as f:
+        with open(SYMBOLS_FILE) as f:
             syms = [ln.split("#")[0].strip() for ln in f]
         syms = [x for x in syms if x]
         if syms:
@@ -422,6 +452,7 @@ def main():
 
     if a.test:
         send_email("Arrow scanner test", "Your scanner can send email.")
+        send_push("Arrow scanner test", "Your phone notification works.")
         print("Test email sent.")
         return
 
@@ -440,11 +471,12 @@ def main():
 
     if new_alerts:
         names = ", ".join(f"{x['name']} {x['dir_txt']}" for x in new_alerts)
-        subject = f"Arrow alert: {names}"
+        subject = f"{ALERT_PREFIX}: {names}"
         body = "\n".join(x["body"] for x in new_alerts)
         print(f"ALERT -> {subject}")
         if not a.dry:
             send_email(subject, body)
+            send_push(subject, body)
             state["sent"] += [x["key"] for x in new_alerts]
     else:
         print("No new alerts this run.")
