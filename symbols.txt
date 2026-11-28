@@ -1,6 +1,22 @@
-# STOCKS list (daily-arrow + 15m scanner). Forex and gold are in forex_symbols.txt.
+# MAIN list (daily-arrow + 15m scanner): gold, forex and Nifty 50 stocks.
+# forex_symbols.txt is a separate list that ignores the daily arrow.
 # One Yahoo Finance symbol per line. Lines starting with # are ignored.
 # Prices in comments are the 26 Nov 2026 closing prices (for reference only).
+
+# ---- Gold ----
+XAUUSD=X      # Gold spot (the scanner uses GC=F gold futures if Yahoo has no data)
+
+# ---- Top 10 forex pairs ----
+EURUSD=X
+USDJPY=X
+GBPUSD=X
+USDCHF=X
+AUDUSD=X
+USDCAD=X
+NZDUSD=X
+EURGBP=X
+EURJPY=X
+GBPJPY=X
 
 # ---- Nifty 50 stocks priced between Rs 300 and Rs 5000 (39 of 50) ----
 RELIANCE.NS       # Reliance Industries ~1,373.90
