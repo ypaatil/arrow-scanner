@@ -1,0 +1,16 @@
+# FOREX + GOLD list (15m scanner, daily arrow ignored).
+# One Yahoo Finance symbol per line. Lines starting with # are ignored.
+
+XAUUSD=X      # Gold spot (the scanner uses GC=F gold futures if Yahoo has no data)
+
+# ---- Top 10 forex pairs ----
+EURUSD=X
+USDJPY=X
+GBPUSD=X
+USDCHF=X
+AUDUSD=X
+USDCAD=X
+NZDUSD=X
+EURGBP=X
+EURJPY=X
+GBPJPY=X
