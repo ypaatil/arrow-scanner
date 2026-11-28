@@ -1,0 +1,13 @@
+# CRYPTO list (runs 24 hours, 7 days). One Yahoo Finance symbol per line.
+# Lines starting with # are ignored. Stablecoins (USDT, USDC) are left out: they do not trend.
+
+BTC-USD        # Bitcoin
+ETH-USD        # Ethereum
+BNB-USD        # BNB
+XRP-USD        # XRP
+SOL-USD        # Solana
+TRX-USD        # TRON
+HYPE32196-USD  # Hyperliquid (Yahoo's odd name; if the log says "not enough data", delete this line)
+ZEC-USD        # Zcash
+DOGE-USD       # Dogecoin
+ADA-USD        # Cardano
