@@ -66,10 +66,11 @@ RETEST_GAP = 4
 def pretty(sym):
     """Readable name for emails, e.g. XAUUSD=X -> Gold (XAUUSD), RELIANCE.NS -> RELIANCE."""
     special = {"XAUUSD=X": "Gold (XAUUSD)", "GC=F": "Gold Futures (GC)",
-               "XAGUSD=X": "Silver (XAGUSD)", "^NSEI": "Nifty 50", "^NSEBANK": "Bank Nifty"}
+               "XAGUSD=X": "Silver (XAGUSD)", "^NSEI": "Nifty 50", "^NSEBANK": "Bank Nifty",
+               "HYPE32196-USD": "HYPE (Hyperliquid)"}
     if sym in special:
         return special[sym]
-    for suffix in ("=X", ".NS", ".BO"):
+    for suffix in ("=X", ".NS", ".BO", "-USD"):
         if sym.endswith(suffix):
             return sym[: -len(suffix)]
     return sym
@@ -332,7 +333,15 @@ def analyze(sym, dry=False):
 
     # keep only completed 15m candles
     now = pd.Timestamp.now(tz=m15.index.tz)
-    m15 = m15[m15.index + pd.Timedelta(minutes=15) <= now]
+    done = m15[m15.index + pd.Timedelta(minutes=15) <= now]
+    forming = m15[m15.index + pd.Timedelta(minutes=15) > now]
+    m15 = done
+    # TradingView confirms an arrow the moment the NEXT candle opens (the first tick of it).
+    # To be as early as TradingView, add the newly opened candle with only its opening price.
+    if len(forming) and len(done):
+        op = float(forming["Open"].iloc[-1])
+        m15 = pd.concat([done, pd.DataFrame(
+            {"Open": [op], "High": [op], "Low": [op], "Close": [op]}, index=[forming.index[-1]])])
 
     arr = lambda d, k: d[k].to_numpy(dtype=float)
     daily_dir = 0
@@ -378,7 +387,7 @@ def analyze(sym, dry=False):
                   f"  Signal: {s} {name[d]} arrows in a row on 15m\n"
                   + (f"  Daily last arrow: {name[daily_dir]}\n" if USE_DAILY_FILTER else "") +
                   f"  Arrow candle times (IST): {times}\n"
-                  f"  Price (close): {m15['Close'].iloc[i]:.5g}\n")))
+                  f"  Price: {m15['Close'].iloc[i]:.5g}\n")))
     return alerts
 
 
